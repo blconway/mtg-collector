@@ -8,6 +8,7 @@ from app.models import (
     FINISH_OPTIONS,
     LANGUAGE_OPTIONS,
     Card,
+    ChangeLog,
 )
 from app.services.importer import parse_csv, parse_text_list, resolve_cards
 from app.services.mtgjson import deck_to_import_list, get_deck, search_decks
@@ -66,6 +67,97 @@ def refresh_prices():
     thread.start()
 
     return jsonify({"ok": True, "message": "Price refresh started. This may take a few minutes."})
+
+
+@api_bp.post("/collection/deduplicate")
+def deduplicate():
+    """Merge duplicate cards that share the same printing, condition, finish, and language."""
+    from collections import defaultdict
+
+    cards = Card.query.order_by(Card.created_at.asc()).all()
+
+    # Group by dedup key
+    groups: dict[tuple, list[Card]] = defaultdict(list)
+    for card in cards:
+        key = (
+            card.scryfall_id or "",
+            card.name,
+            card.set_code or "",
+            card.collector_number or "",
+            card.condition,
+            card.finish,
+            card.language,
+        )
+        groups[key].append(card)
+
+    merged_count = 0
+    removed_count = 0
+
+    for key, group in groups.items():
+        if len(group) < 2:
+            continue
+
+        # Keep the first (oldest) entry, merge others into it
+        keep = group[0]
+        for dup in group[1:]:
+            keep.quantity += dup.quantity
+
+            # Merge purchase price (sum total spent)
+            if dup.purchase_price and keep.purchase_price:
+                keep.purchase_price += dup.purchase_price
+
+            # Merge tags (unique)
+            if dup.tags:
+                existing = set(keep.tag_list)
+                for tag in dup.tag_list:
+                    if tag not in existing:
+                        existing.add(tag)
+                keep.tags = ", ".join(sorted(existing)) if existing else None
+
+            # Merge notes (append)
+            if dup.notes:
+                if keep.notes:
+                    keep.notes = keep.notes.rstrip() + "\n" + dup.notes
+                else:
+                    keep.notes = dup.notes
+
+            # Keep storage location from whichever has one
+            if not keep.binder and dup.binder:
+                keep.binder = dup.binder
+            if not keep.box and dup.box:
+                keep.box = dup.box
+            if not keep.row and dup.row:
+                keep.row = dup.row
+            if not keep.slot and dup.slot:
+                keep.slot = dup.slot
+
+            # Keep earlier acquired date
+            if dup.acquired_at:
+                if not keep.acquired_at or dup.acquired_at < keep.acquired_at:
+                    keep.acquired_at = dup.acquired_at
+
+            # Keep better price data
+            if dup.market_price and not keep.market_price:
+                keep.market_price = dup.market_price
+            if dup.foil_price and not keep.foil_price:
+                keep.foil_price = dup.foil_price
+            if dup.price_updated_at:
+                if not keep.price_updated_at or dup.price_updated_at > keep.price_updated_at:
+                    keep.price_updated_at = dup.price_updated_at
+
+            db.session.delete(dup)
+            removed_count += 1
+
+        merged_count += 1
+
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "merged_groups": merged_count,
+        "removed_entries": removed_count,
+        "message": f"Merged {merged_count} groups, removed {removed_count} duplicate entries.",
+    })
 
 
 @api_bp.get("/prints")
@@ -353,7 +445,8 @@ def import_parse():
 
 @api_bp.post("/import/commit")
 def import_commit():
-    """Bulk-create cards from a resolved import list."""
+    """Bulk-create cards from a resolved import list, merging into existing entries when possible."""
+    import json as json_mod
     from decimal import Decimal, InvalidOperation
 
     data = request.get_json()
@@ -361,48 +454,214 @@ def import_commit():
         return jsonify({"ok": False, "errors": ["No card data provided."]}), 400
 
     cards_data = data["cards"]
-    imported = 0
+    created = 0
+    merged = 0
+    affected_uids = []
+
+    def _dec(val):
+        try:
+            return Decimal(str(val).strip()) if val else Decimal("0.00")
+        except (InvalidOperation, ValueError):
+            return Decimal("0.00")
 
     for entry in cards_data:
         name = entry.get("name", "").strip()
         if not name:
             continue
 
-        def _dec(val):
-            try:
-                return Decimal(str(val).strip()) if val else Decimal("0.00")
-            except (InvalidOperation, ValueError):
-                return Decimal("0.00")
+        qty = max(1, int(entry.get("quantity", 1)))
+        condition = entry.get("condition", "near_mint")
+        finish = entry.get("finish", "nonfoil")
+        language = entry.get("language", "English")
+        scryfall_id = entry.get("scryfall_id", "") or None
+        set_code = entry.get("set_code", "") or None
+        collector_number = entry.get("collector_number", "") or None
 
-        card = Card(
-            name=name,
-            set_name=entry.get("set_name", ""),
-            set_code=entry.get("set_code", "") or None,
-            collector_number=entry.get("collector_number", "") or None,
-            scryfall_id=entry.get("scryfall_id", "") or None,
-            oracle_id=entry.get("oracle_id", "") or None,
-            type_line=entry.get("type_line", "") or None,
-            mana_cost=entry.get("mana_cost", "") or None,
-            oracle_text=entry.get("oracle_text", "") or None,
-            rarity=entry.get("rarity", "") or None,
-            color_identity=entry.get("color_identity", "") or None,
-            image_url=entry.get("image_url", "") or None,
-            scryfall_uri=entry.get("scryfall_uri", "") or None,
-            quantity=max(1, int(entry.get("quantity", 1))),
-            condition=entry.get("condition", "near_mint"),
-            finish=entry.get("finish", "nonfoil"),
-            language=entry.get("language", "English"),
-            purchase_price=_dec(entry.get("purchase_price")),
-            market_price=_dec(entry.get("market_price")) if entry.get("market_price") else None,
-            foil_price=_dec(entry.get("foil_price")) if entry.get("foil_price") else None,
-            tags=entry.get("tags", "") or None,
-            notes=entry.get("notes", "") or None,
-        )
-        db.session.add(card)
-        imported += 1
+        # Try to find an existing card with the same dedup key
+        existing = None
+        if scryfall_id:
+            existing = Card.query.filter_by(
+                scryfall_id=scryfall_id,
+                condition=condition,
+                finish=finish,
+                language=language,
+            ).first()
 
+        if not existing and set_code and collector_number:
+            existing = Card.query.filter_by(
+                name=name,
+                set_code=set_code,
+                collector_number=collector_number,
+                condition=condition,
+                finish=finish,
+                language=language,
+            ).first()
+
+        if existing:
+            existing.quantity += qty
+            affected_uids.append(existing.uid)
+            merged += 1
+        else:
+            card = Card(
+                name=name,
+                set_name=entry.get("set_name", ""),
+                set_code=set_code,
+                collector_number=collector_number,
+                scryfall_id=scryfall_id,
+                oracle_id=entry.get("oracle_id", "") or None,
+                type_line=entry.get("type_line", "") or None,
+                mana_cost=entry.get("mana_cost", "") or None,
+                oracle_text=entry.get("oracle_text", "") or None,
+                rarity=entry.get("rarity", "") or None,
+                color_identity=entry.get("color_identity", "") or None,
+                image_url=entry.get("image_url", "") or None,
+                scryfall_uri=entry.get("scryfall_uri", "") or None,
+                quantity=qty,
+                condition=condition,
+                finish=finish,
+                language=language,
+                purchase_price=_dec(entry.get("purchase_price")),
+                market_price=_dec(entry.get("market_price")) if entry.get("market_price") else None,
+                foil_price=_dec(entry.get("foil_price")) if entry.get("foil_price") else None,
+                tags=entry.get("tags", "") or None,
+                notes=entry.get("notes", "") or None,
+            )
+            db.session.add(card)
+            created += 1
+
+    db.session.flush()
+
+    # Build card snapshots for undo (only newly created cards)
+    new_cards = Card.query.order_by(Card.created_at.desc()).limit(created).all() if created else []
+    card_snapshots = [c.to_dict() for c in new_cards]
+
+    # Also record merged card uids so undo can reduce their quantities
+    total_qty = sum(entry.get("quantity", 1) for entry in cards_data if entry.get("name", "").strip())
+    desc_parts = []
+    if created:
+        desc_parts.append(f"{created} new")
+    if merged:
+        desc_parts.append(f"{merged} merged")
+    description = f"Imported {total_qty} cards ({', '.join(desc_parts)})"
+
+    log = ChangeLog(
+        action="import",
+        description=description,
+        card_data=json_mod.dumps(card_snapshots),
+    )
+    db.session.add(log)
     db.session.commit()
-    return jsonify({"ok": True, "imported": imported})
+
+    return jsonify({"ok": True, "imported": created + merged, "created": created, "merged": merged})
+
+
+# ── Changelog endpoints ───────────────────────────────────────────────────────
+
+@api_bp.get("/changelog")
+def changelog_list():
+    """Return recent changelog entries."""
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = 50
+    pagination = ChangeLog.query.order_by(ChangeLog.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    return jsonify({
+        "entries": [e.to_dict() for e in pagination.items],
+        "total": pagination.total,
+        "page": pagination.page,
+        "pages": pagination.pages,
+    })
+
+
+@api_bp.post("/changelog/<uid>/undo")
+def changelog_undo(uid: str):
+    """Undo a changelog entry (add/import → delete those cards, delete → re-create)."""
+    import json as json_mod
+
+    entry = ChangeLog.query.filter_by(uid=uid).first_or_404()
+    cards_data = json_mod.loads(entry.card_data) if entry.card_data else []
+
+    if entry.action in ("add", "import"):
+        # Undo add/import: delete the cards that were created
+        deleted = 0
+        for card_snapshot in cards_data:
+            card_uid = card_snapshot.get("uid")
+            if card_uid:
+                card = Card.query.filter_by(uid=card_uid).first()
+                if card:
+                    db.session.delete(card)
+                    deleted += 1
+        db.session.delete(entry)
+        db.session.commit()
+        return jsonify({"ok": True, "message": f"Undone: removed {deleted} cards."})
+
+    elif entry.action == "delete":
+        # Undo delete: re-create the card(s)
+        from decimal import Decimal, InvalidOperation
+        recreated = 0
+        for card_snapshot in cards_data:
+            def _dec(val):
+                try:
+                    return Decimal(str(val).strip()) if val else Decimal("0.00")
+                except (InvalidOperation, ValueError):
+                    return Decimal("0.00")
+
+            card = Card(
+                name=card_snapshot.get("name", ""),
+                set_name=card_snapshot.get("set_name", ""),
+                set_code=card_snapshot.get("set_code") or None,
+                collector_number=card_snapshot.get("collector_number") or None,
+                scryfall_id=card_snapshot.get("scryfall_id") or None,
+                oracle_id=card_snapshot.get("oracle_id") or None,
+                type_line=card_snapshot.get("type_line") or None,
+                mana_cost=card_snapshot.get("mana_cost") or None,
+                oracle_text=card_snapshot.get("oracle_text") or None,
+                rarity=card_snapshot.get("rarity") or None,
+                color_identity=card_snapshot.get("color_identity") or None,
+                image_url=card_snapshot.get("image_url") or None,
+                scryfall_uri=card_snapshot.get("scryfall_uri") or None,
+                quantity=card_snapshot.get("quantity", 1),
+                condition=card_snapshot.get("condition", "near_mint"),
+                finish=card_snapshot.get("finish", "nonfoil"),
+                language=card_snapshot.get("language", "English"),
+                purchase_price=_dec(card_snapshot.get("purchase_price")),
+                market_price=_dec(card_snapshot.get("market_price")) if card_snapshot.get("market_price") else None,
+                foil_price=_dec(card_snapshot.get("foil_price")) if card_snapshot.get("foil_price") else None,
+                tags=card_snapshot.get("tags") or None,
+                notes=card_snapshot.get("notes") or None,
+            )
+            db.session.add(card)
+            recreated += 1
+        db.session.delete(entry)
+        db.session.commit()
+        return jsonify({"ok": True, "message": f"Undone: restored {recreated} cards."})
+
+    return jsonify({"ok": False, "errors": ["This action cannot be undone."]}), 400
+
+
+@api_bp.post("/collection/delete-all")
+def delete_all():
+    """Delete all cards. Requires confirmation string."""
+    data = request.get_json()
+    confirmation = (data or {}).get("confirmation", "")
+    if confirmation != "delete-all":
+        return jsonify({"ok": False, "errors": ["Type 'delete-all' to confirm."]}), 400
+
+    import json as json_mod
+    count = Card.query.count()
+
+    # Log it (but don't store all card data — too large for a full collection)
+    log = ChangeLog(
+        action="delete",
+        description=f"Deleted all {count} cards",
+        card_data=json_mod.dumps([]),
+    )
+    db.session.add(log)
+
+    Card.query.delete()
+    db.session.commit()
+
+    return jsonify({"ok": True, "message": f"Deleted all {count} cards."})
 
 
 # ── Precon / Set search endpoints ─────────────────────────────────────────────

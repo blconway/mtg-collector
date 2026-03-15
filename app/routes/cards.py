@@ -4,11 +4,14 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 
 from app.extensions import db
+import json
+
 from app.models import (
     CONDITION_OPTIONS,
     FINISH_OPTIONS,
     LANGUAGE_OPTIONS,
     Card,
+    ChangeLog,
 )
 from app.services.scryfall import get_card_by_id
 
@@ -121,6 +124,13 @@ def add_card_post():
             flash(e, "error")
         return redirect(url_for("cards.add_card"))
     db.session.add(card)
+    db.session.flush()
+    log = ChangeLog(
+        action="add",
+        description=f"Added {card.name}",
+        card_data=json.dumps([card.to_dict()]),
+    )
+    db.session.add(log)
     db.session.commit()
     if _wants_json():
         return jsonify({"ok": True, "card": card.to_dict(), "message": f"Added {card.name}."})
@@ -162,6 +172,12 @@ def edit_card_post(uid: str):
 def delete_card(uid: str):
     card = Card.query.filter_by(uid=uid).first_or_404()
     name = card.name
+    log = ChangeLog(
+        action="delete",
+        description=f"Deleted {name}",
+        card_data=json.dumps([card.to_dict()]),
+    )
+    db.session.add(log)
     db.session.delete(card)
     db.session.commit()
     if _wants_json():

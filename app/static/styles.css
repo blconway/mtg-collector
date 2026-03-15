@@ -688,6 +688,111 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
   font-size: 0.8rem;
 }
 
+/* ── Toolbar dropdown menu ── */
+
+.toolbar-menu-wrap {
+  position: relative;
+}
+
+.toolbar-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  min-width: 160px;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.toolbar-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toolbar-menu-item:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+.toolbar-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0.25rem 0;
+}
+
+.toolbar-menu-danger {
+  color: var(--error);
+}
+
+.toolbar-menu-danger:hover {
+  background: rgba(255,85,85,0.1);
+}
+
+/* ── Changelog modal ── */
+
+.changelog-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.changelog-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  gap: 0.75rem;
+}
+
+.changelog-entry:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.changelog-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.changelog-desc {
+  font-size: 0.85rem;
+}
+
+.changelog-date {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.changelog-action-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--border);
+  margin-right: 0.4rem;
+}
+
+.changelog-action-badge.add { color: var(--success); border-color: var(--success); }
+.changelog-action-badge.import { color: var(--accent); border-color: var(--accent); }
+.changelog-action-badge.delete { color: var(--error); border-color: var(--error); }
+
+.delete-all-input {
+  margin-top: 0.5rem;
+  width: 100%;
+  font-family: monospace;
+}
+
 .button-accent {
   background: var(--accent);
   color: #fff;

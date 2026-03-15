@@ -117,6 +117,38 @@
     }
   }
 
+  // ── Deduplicate ─────────────────────────────────────────────────────────────
+
+  async function deduplicateCards() {
+    if (!confirm("Merge duplicate cards that share the same printing, condition, finish, and language?\n\nQuantities will be combined.")) return;
+
+    const btn = document.getElementById("dedupe-btn");
+    btn.disabled = true;
+    btn.textContent = "Merging...";
+
+    try {
+      const resp = await fetch("/api/collection/deduplicate", { method: "POST" });
+      const data = await resp.json();
+      btn.disabled = false;
+      btn.textContent = "Deduplicate";
+
+      if (data.ok) {
+        if (data.removed_entries > 0) {
+          alert(`Merged ${data.merged_groups} groups, removed ${data.removed_entries} duplicate entries.`);
+          state.selectedCardUid = null;
+          $detailPane.innerHTML = '<div class="detail-empty">Select a card to view details</div>';
+          await refreshAll();
+        } else {
+          alert("No duplicates found.");
+        }
+      }
+    } catch {
+      btn.disabled = false;
+      btn.textContent = "Deduplicate";
+      alert("Failed to deduplicate");
+    }
+  }
+
   // ── Sidebar ────────────────────────────────────────────────────────────────
 
   async function loadSidebar() {
@@ -640,6 +672,144 @@
     setTimeout(() => searchInput.focus(), 100);
   }
 
+  // ── Changelog modal ────────────────────────────────────────────────────────
+
+  async function openChangelog() {
+    $modalContent.innerHTML = `
+      <div class="modal-header">
+        <h3>Changelog</h3>
+        <button type="button" class="modal-close" id="modal-close-btn">&times;</button>
+      </div>
+      <div class="changelog-list" id="changelog-list">
+        <div class="muted small" style="padding:1rem;text-align:center">Loading...</div>
+      </div>
+    `;
+    $modal.classList.add("open");
+    document.getElementById("modal-close-btn").addEventListener("click", closeModal);
+    await loadChangelog();
+  }
+
+  async function loadChangelog() {
+    const listEl = document.getElementById("changelog-list");
+    try {
+      const data = await api("/api/changelog");
+      const entries = data.entries || [];
+
+      if (!entries.length) {
+        listEl.innerHTML = '<div class="muted small" style="padding:1rem;text-align:center">No changelog entries yet</div>';
+        return;
+      }
+
+      listEl.innerHTML = "";
+      for (const entry of entries) {
+        const div = document.createElement("div");
+        div.className = "changelog-entry";
+
+        const date = new Date(entry.created_at);
+        const dateStr = date.toLocaleDateString() + " " + date.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+        const canUndo = entry.action === "add" || entry.action === "import" || entry.action === "delete";
+
+        div.innerHTML = `
+          <div class="changelog-info">
+            <div class="changelog-desc">
+              <span class="changelog-action-badge ${esc(entry.action)}">${esc(entry.action)}</span>
+              ${esc(entry.description)}
+            </div>
+            <div class="changelog-date">${esc(dateStr)}</div>
+          </div>
+          ${canUndo ? `<button class="button button-sm changelog-undo-btn" data-uid="${esc(entry.uid)}">Undo</button>` : ""}
+        `;
+        listEl.appendChild(div);
+      }
+
+      listEl.querySelectorAll(".changelog-undo-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Undo this action?")) return;
+          btn.disabled = true;
+          btn.textContent = "Undoing...";
+          try {
+            const resp = await fetch(`/api/changelog/${encodeURIComponent(btn.dataset.uid)}/undo`, { method: "POST" });
+            const result = await resp.json();
+            if (result.ok) {
+              await loadChangelog();
+              refreshAll();
+            } else {
+              alert((result.errors || ["Undo failed"]).join("\n"));
+              btn.disabled = false;
+              btn.textContent = "Undo";
+            }
+          } catch {
+            alert("Failed to undo");
+            btn.disabled = false;
+            btn.textContent = "Undo";
+          }
+        });
+      });
+    } catch {
+      listEl.innerHTML = '<div class="muted small" style="padding:1rem;text-align:center">Failed to load changelog</div>';
+    }
+  }
+
+  // ── Delete all ─────────────────────────────────────────────────────────────
+
+  function openDeleteAll() {
+    $modalContent.innerHTML = `
+      <div class="modal-header">
+        <h3>Delete All Cards</h3>
+        <button type="button" class="modal-close" id="modal-close-btn">&times;</button>
+      </div>
+      <p style="color:var(--error);font-size:0.9rem">
+        This will permanently delete every card in your collection. This cannot be undone.
+      </p>
+      <p class="muted small">Type <strong>delete-all</strong> to confirm:</p>
+      <input type="text" id="delete-all-input" class="delete-all-input" placeholder="delete-all" autocomplete="off">
+      <div class="form-submit-row">
+        <button class="button" id="delete-all-confirm-btn" style="background:var(--error);border-color:var(--error);color:#fff" disabled>Delete All Cards</button>
+        <button class="button button-secondary" id="delete-all-cancel-btn">Cancel</button>
+      </div>
+    `;
+    $modal.classList.add("open");
+
+    document.getElementById("modal-close-btn").addEventListener("click", closeModal);
+    document.getElementById("delete-all-cancel-btn").addEventListener("click", closeModal);
+
+    const input = document.getElementById("delete-all-input");
+    const confirmBtn = document.getElementById("delete-all-confirm-btn");
+
+    input.addEventListener("input", () => {
+      confirmBtn.disabled = input.value.trim() !== "delete-all";
+    });
+
+    confirmBtn.addEventListener("click", async () => {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Deleting...";
+      try {
+        const resp = await fetch("/api/collection/delete-all", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmation: input.value.trim() }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          closeModal();
+          state.selectedCardUid = null;
+          $detailPane.innerHTML = '<div class="detail-empty">Select a card to view details</div>';
+          await refreshAll();
+        } else {
+          alert((data.errors || ["Delete failed"]).join("\n"));
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = "Delete All Cards";
+        }
+      } catch {
+        alert("Failed to delete");
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "Delete All Cards";
+      }
+    });
+
+    setTimeout(() => input.focus(), 100);
+  }
+
   // ── Import modal ───────────────────────────────────────────────────────────
 
   let importResolvedCards = [];
@@ -975,8 +1145,16 @@
       if (data.ok) {
         document.getElementById("import-preview").hidden = true;
         const result = document.getElementById("import-result");
-        result.querySelector(".import-result-message").textContent =
-          `Successfully imported ${data.imported} card${data.imported !== 1 ? "s" : ""}.`;
+        const totalQty = importResolvedCards.reduce((sum, c) => sum + (c.quantity || 1), 0);
+        let msg = `Successfully imported ${totalQty} card${totalQty !== 1 ? "s" : ""}`;
+        if (data.created || data.merged) {
+          const parts = [];
+          if (data.created) parts.push(`${data.created} new`);
+          if (data.merged) parts.push(`${data.merged} merged with existing`);
+          msg += ` (${parts.join(", ")})`;
+        }
+        msg += ".";
+        result.querySelector(".import-result-message").textContent = msg;
         result.hidden = false;
 
         const doneBtn = document.getElementById("import-done-btn");
@@ -1173,6 +1351,33 @@
 
     // Refresh prices
     document.getElementById("refresh-prices-btn").addEventListener("click", refreshPrices);
+
+    // Tools menu
+    const toolsBtn = document.getElementById("tools-menu-btn");
+    const toolsMenu = document.getElementById("tools-menu");
+    toolsBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toolsMenu.hidden = !toolsMenu.hidden;
+    });
+    document.addEventListener("click", () => { toolsMenu.hidden = true; });
+    toolsMenu.addEventListener("click", (e) => e.stopPropagation());
+
+    document.getElementById("refresh-prices-btn").addEventListener("click", () => {
+      toolsMenu.hidden = true;
+      refreshPrices();
+    });
+    document.getElementById("dedupe-btn").addEventListener("click", () => {
+      toolsMenu.hidden = true;
+      deduplicateCards();
+    });
+    document.getElementById("changelog-btn").addEventListener("click", () => {
+      toolsMenu.hidden = true;
+      openChangelog();
+    });
+    document.getElementById("delete-all-btn").addEventListener("click", () => {
+      toolsMenu.hidden = true;
+      openDeleteAll();
+    });
 
     // Import
     document.getElementById("import-btn").addEventListener("click", openImportModal);

@@ -22,7 +22,6 @@
       </div>
       <div class="stats-refresh-row">
         <span class="muted small" id="stat-price-updated">Prices: never updated</span>
-        <button class="link-button small" id="refresh-prices-btn" title="Refresh all prices from Scryfall">Refresh Prices</button>
       </div>
     </div>
     <div class="sidebar-header">
@@ -65,6 +64,16 @@
         <button id="view-toggle" class="button button-sm" title="Toggle grid view">Grid</button>
         <button id="import-btn" class="button button-sm">Import</button>
         <button id="add-card-btn" class="button button-sm button-accent">+ Add Card</button>
+        <div class="toolbar-menu-wrap" id="tools-menu-wrap">
+          <button class="button button-sm" id="tools-menu-btn" title="Tools">&#9881;</button>
+          <div class="toolbar-menu" id="tools-menu" hidden>
+            <button class="toolbar-menu-item" id="refresh-prices-btn">Refresh Prices</button>
+            <button class="toolbar-menu-item" id="dedupe-btn">Merge Duplicates</button>
+            <button class="toolbar-menu-item" id="changelog-btn">Changelog</button>
+            <div class="toolbar-menu-divider"></div>
+            <button class="toolbar-menu-item toolbar-menu-danger" id="delete-all-btn">Delete All Cards</button>
+          </div>
+        </div>
       </div>
       <div class="list-content" id="list-content">
         <div class="empty-state">Loading collection...</div>
