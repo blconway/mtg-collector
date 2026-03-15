@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}{% if card %}Edit {{ card.name }}{% else %}Add Card{% endif %} | MTG Collector{% endblock %}
+{% block content %}
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h3>{% if card %}Edit Card{% else %}Add Card{% endif %}</h3>
+        <p class="panel-copy">{% if card %}Update physical details for this card.{% else %}Search for a card on Scryfall, select the exact printing, then fill in physical details.{% endif %}</p>
+      </div>
+      {% if card %}
+      <div class="form-actions">
+        <form method="post" action="{{ url_for('cards.delete_card', uid=card.uid) }}" onsubmit="return confirm('Delete {{ card.name }}?')">
+          <button type="submit" class="link-button link-danger">Delete Card</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if not card %}
+    <div class="scryfall-lookup" id="scryfall-lookup">
+      <h4 class="lookup-title">Step 1 — Find the card</h4>
+      <div class="lookup-row">
+        <div class="lookup-search-wrap">
+          <input
+            type="text"
+            id="scryfall-search"
+            placeholder="Type a card name…"
+            autocomplete="off"
+            class="lookup-input"
+          >
+          <ul id="autocomplete-list" class="autocomplete-list" hidden></ul>
+        </div>
+        <div id="print-select-wrap" hidden>
+          <select id="print-select" class="print-select">
+            <option value="">Select printing…</option>
+          </select>
+        </div>
+      </div>
+      <p id="lookup-status" class="muted small" hidden></p>
+    </div>
+    {% endif %}
+
+    <div id="card-form-section" {% if not card %}hidden{% endif %}>
+      {% if card %}
+        <div class="card-preview-row">
+          {% if card.image_url %}
+            <img src="{{ card.image_url }}" alt="{{ card.name }}" class="card-preview-img">
+          {% endif %}
+          <div class="card-preview-meta">
+            <h3>{{ card.name }}</h3>
+            <p class="muted">{{ card.set_name }}{% if card.collector_number %} · #{{ card.collector_number }}{% endif %}</p>
+            {% if card.type_line %}<p class="muted small">{{ card.type_line }}</p>{% endif %}
+            {% if card.scryfall_uri %}<a href="{{ card.scryfall_uri }}" target="_blank" rel="noreferrer" class="link-small">Scryfall ↗</a>{% endif %}
+          </div>
+        </div>
+      {% else %}
+        <div id="card-preview-row" class="card-preview-row" hidden>
+          <img id="card-preview-img" src="" alt="" class="card-preview-img">
+          <div class="card-preview-meta">
+            <h3 id="preview-name"></h3>
+            <p id="preview-set" class="muted"></p>
+            <p id="preview-type" class="muted small"></p>
+            <a id="preview-scryfall-link" href="#" target="_blank" rel="noreferrer" class="link-small" hidden>Scryfall ↗</a>
+          </div>
+        </div>
+      {% endif %}
+
+      <form
+        method="post"
+        action="{% if card %}{{ url_for('cards.edit_card_post', uid=card.uid) }}{% else %}{{ url_for('cards.add_card_post') }}{% endif %}"
+        id="card-form"
+      >
+        {# Hidden Scryfall identity fields (pre-filled by JS for new cards) #}
+        <input type="hidden" name="name" id="f-name" value="{{ card.name if card else '' }}">
+        <input type="hidden" name="set_name" id="f-set-name" value="{{ card.set_name if card else '' }}">
+        <input type="hidden" name="set_code" id="f-set-code" value="{{ card.set_code or '' if card else '' }}">
+        <input type="hidden" name="collector_number" id="f-collector-number" value="{{ card.collector_number or '' if card else '' }}">
+        <input type="hidden" name="scryfall_id" id="f-scryfall-id" value="{{ card.scryfall_id or '' if card else '' }}">
+        <input type="hidden" name="oracle_id" id="f-oracle-id" value="{{ card.oracle_id or '' if card else '' }}">
+        <input type="hidden" name="type_line" id="f-type-line" value="{{ card.type_line or '' if card else '' }}">
+        <input type="hidden" name="mana_cost" id="f-mana-cost" value="{{ card.mana_cost or '' if card else '' }}">
+        <input type="hidden" name="oracle_text" id="f-oracle-text" value="{{ card.oracle_text or '' if card else '' }}">
+        <input type="hidden" name="rarity" id="f-rarity" value="{{ card.rarity or '' if card else '' }}">
+        <input type="hidden" name="color_identity" id="f-color-identity" value="{{ card.color_identity or '' if card else '' }}">
+        <input type="hidden" name="image_url" id="f-image-url" value="{{ card.image_url or '' if card else '' }}">
+        <input type="hidden" name="scryfall_uri" id="f-scryfall-uri" value="{{ card.scryfall_uri or '' if card else '' }}">
+        <input type="hidden" name="market_price" id="f-market-price" value="{{ card.market_price or '' if card else '' }}">
+        <input type="hidden" name="foil_price" id="f-foil-price" value="{{ card.foil_price or '' if card else '' }}">
+
+        <h4 class="form-section-title">{% if card %}Physical Details{% else %}Step 2 — Physical Details{% endif %}</h4>
+
+        <div class="card-form-grid">
+          <label>
+            Condition
+            <select name="condition" required>
+              {% for opt in condition_options %}
+                <option value="{{ opt }}" {% if (card and card.condition == opt) or (not card and opt == 'near_mint') %}selected{% endif %}>{{ condition_labels[opt] if condition_labels is defined else opt }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            Finish
+            <select name="finish" id="f-finish">
+              {% for opt in finish_options %}
+                <option value="{{ opt }}" {% if (card and card.finish == opt) or (not card and opt == 'nonfoil') %}selected{% endif %}>{{ opt | title }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            Language
+            <select name="language">
+              {% for opt in language_options %}
+                <option value="{{ opt }}" {% if (card and card.language == opt) or (not card and opt == 'English') %}selected{% endif %}>{{ opt }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            Quantity
+            <input type="number" name="quantity" min="1" value="{{ card.quantity if card else 1 }}" required>
+          </label>
+
+          <label>
+            Purchase Price
+            <input type="text" name="purchase_price" placeholder="0.00" value="{{ card.purchase_price if card else '' }}">
+          </label>
+
+          <label>
+            Acquired
+            <input type="date" name="acquired_at" value="{{ card.acquired_at.isoformat() if card and card.acquired_at else '' }}">
+          </label>
+        </div>
+
+        <h4 class="form-section-title">Storage Location</h4>
+        <div class="card-form-grid">
+          <label>
+            Binder
+            <input type="text" name="binder" placeholder="Binder A" value="{{ card.binder or '' if card else '' }}">
+          </label>
+          <label>
+            Box
+            <input type="text" name="box" placeholder="Commander Box" value="{{ card.box or '' if card else '' }}">
+          </label>
+          <label>
+            Row
+            <input type="text" name="row" placeholder="3" value="{{ card.row or '' if card else '' }}">
+          </label>
+          <label>
+            Slot
+            <input type="text" name="slot" placeholder="14" value="{{ card.slot or '' if card else '' }}">
+          </label>
+        </div>
+
+        <h4 class="form-section-title">Notes & Tags</h4>
+        <div class="card-form-grid card-form-wide">
+          <label class="full-width">
+            Tags <span class="muted small">(comma-separated)</span>
+            <input type="text" name="tags" placeholder="commander staple, cube, trade" value="{{ card.tags or '' if card else '' }}">
+          </label>
+          <label class="full-width">
+            Notes
+            <textarea name="notes" rows="3" placeholder="Any notes about this copy…">{{ card.notes or '' if card else '' }}</textarea>
+          </label>
+        </div>
+
+        <div class="form-submit-row">
+          <button type="submit" class="button">{% if card %}Save Changes{% else %}Add to Collection{% endif %}</button>
+          <a href="{{ url_for('inventory.inventory') }}" class="button button-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  {% if not card %}
+  <script>
+    (() => {
+      const searchInput = document.getElementById("scryfall-search");
+      const autocompleteList = document.getElementById("autocomplete-list");
+      const printSelectWrap = document.getElementById("print-select-wrap");
+      const printSelect = document.getElementById("print-select");
+      const lookupStatus = document.getElementById("lookup-status");
+      const formSection = document.getElementById("card-form-section");
+      const previewRow = document.getElementById("card-preview-row");
+
+      // Hidden form fields
+      const fields = {
+        name: document.getElementById("f-name"),
+        set_name: document.getElementById("f-set-name"),
+        set_code: document.getElementById("f-set-code"),
+        collector_number: document.getElementById("f-collector-number"),
+        scryfall_id: document.getElementById("f-scryfall-id"),
+        oracle_id: document.getElementById("f-oracle-id"),
+        type_line: document.getElementById("f-type-line"),
+        mana_cost: document.getElementById("f-mana-cost"),
+        oracle_text: document.getElementById("f-oracle-text"),
+        rarity: document.getElementById("f-rarity"),
+        color_identity: document.getElementById("f-color-identity"),
+        image_url: document.getElementById("f-image-url"),
+        scryfall_uri: document.getElementById("f-scryfall-uri"),
+        market_price: document.getElementById("f-market-price"),
+        foil_price: document.getElementById("f-foil-price"),
+      };
+
+      let debounceTimer = null;
+      let selectedName = "";
+
+      // ── Autocomplete ────────────────────────────────────────────────────
+      searchInput.addEventListener("input", () => {
+        clearTimeout(debounceTimer);
+        const q = searchInput.value.trim();
+        if (q.length < 2) { autocompleteList.hidden = true; return; }
+        debounceTimer = setTimeout(() => fetchAutocomplete(q), 250);
+      });
+
+      async function fetchAutocomplete(q) {
+        try {
+          const resp = await fetch(`/api/autocomplete?q=${encodeURIComponent(q)}`);
+          const data = await resp.json();
+          renderAutocomplete(data.results || []);
+        } catch { autocompleteList.hidden = true; }
+      }
+
+      function renderAutocomplete(results) {
+        autocompleteList.innerHTML = "";
+        if (!results.length) { autocompleteList.hidden = true; return; }
+        for (const name of results.slice(0, 8)) {
+          const li = document.createElement("li");
+          li.textContent = name;
+          li.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            selectCardName(name);
+          });
+          autocompleteList.appendChild(li);
+        }
+        autocompleteList.hidden = false;
+      }
+
+      searchInput.addEventListener("blur", () => {
+        setTimeout(() => { autocompleteList.hidden = true; }, 150);
+      });
+
+      // ── Select card name → load prints ─────────────────────────────────
+      async function selectCardName(name) {
+        selectedName = name;
+        searchInput.value = name;
+        autocompleteList.hidden = true;
+        lookupStatus.textContent = "Loading printings…";
+        lookupStatus.hidden = false;
+        printSelectWrap.hidden = true;
+        formSection.hidden = true;
+
+        try {
+          const resp = await fetch(`/api/prints?name=${encodeURIComponent(name)}`);
+          const data = await resp.json();
+          const prints = data.results || [];
+          if (!prints.length) {
+            lookupStatus.textContent = "No printings found.";
+            return;
+          }
+          renderPrintSelect(prints);
+          lookupStatus.hidden = true;
+        } catch {
+          lookupStatus.textContent = "Failed to load printings.";
+        }
+      }
+
+      function renderPrintSelect(prints) {
+        printSelect.innerHTML = '<option value="">Select printing…</option>';
+        for (const p of prints) {
+          const opt = document.createElement("option");
+          opt.value = p.scryfall_id;
+          opt.textContent = `${p.set_name} (${p.set_code}) · #${p.collector_number} · ${p.rarity}${p.market_price ? " · $" + p.market_price : ""}`;
+          opt.dataset.card = JSON.stringify(p);
+          printSelect.appendChild(opt);
+        }
+        printSelectWrap.hidden = false;
+        printSelect.focus();
+      }
+
+      // ── Select printing → fill form ─────────────────────────────────────
+      printSelect.addEventListener("change", () => {
+        const opt = printSelect.selectedOptions[0];
+        if (!opt || !opt.dataset.card) { formSection.hidden = true; return; }
+        const card = JSON.parse(opt.dataset.card);
+        fillForm(card);
+      });
+
+      function fillForm(card) {
+        for (const [key, el] of Object.entries(fields)) {
+          el.value = card[key] || "";
+        }
+
+        // Update preview
+        const img = document.getElementById("card-preview-img");
+        img.src = card.image_url || "";
+        img.alt = card.name || "";
+        document.getElementById("preview-name").textContent = card.name || "";
+        document.getElementById("preview-set").textContent =
+          `${card.set_name}${card.collector_number ? " · #" + card.collector_number : ""}`;
+        document.getElementById("preview-type").textContent = card.type_line || "";
+
+        const scryfallLink = document.getElementById("preview-scryfall-link");
+        if (card.scryfall_uri) {
+          scryfallLink.href = card.scryfall_uri;
+          scryfallLink.hidden = false;
+        }
+
+        // Auto-select finish based on available prices
+        const finishSelect = document.getElementById("f-finish");
+        if (card.foil_price && !card.market_price) {
+          finishSelect.value = "foil";
+        } else {
+          finishSelect.value = "nonfoil";
+        }
+
+        previewRow.hidden = false;
+        formSection.hidden = false;
+        formSection.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+
+      // Allow pressing Enter on the search input to trigger first autocomplete result
+      searchInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const first = autocompleteList.querySelector("li");
+          if (first) selectCardName(first.textContent);
+        }
+      });
+    })();
+  </script>
+  {% endif %}
+{% endblock %}

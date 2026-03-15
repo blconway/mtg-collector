@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Collection | MTG Collector{% endblock %}
+{% block content %}
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h3>Collection</h3>
+        <p class="panel-copy">{{ total_results }} card{% if total_results != 1 %}s{% endif %} found</p>
+      </div>
+      <div class="form-actions">
+        <a href="{{ url_for('cards.add_card') }}" class="button">Add Card</a>
+        <a href="{{ url_for('inventory.export_csv') }}" class="button button-secondary">Export CSV</a>
+      </div>
+    </div>
+
+    <form method="get" action="{{ url_for('inventory.inventory') }}" class="filter-bar">
+      <label class="filter-field-wide">
+        <input type="search" name="q" placeholder="Search by name…" value="{{ q }}" autocomplete="off">
+      </label>
+      <label>
+        <select name="condition">
+          <option value="">All conditions</option>
+          {% for opt in condition_options %}
+            <option value="{{ opt }}" {% if condition_f == opt %}selected{% endif %}>{{ condition_labels[opt] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <select name="finish">
+          <option value="">All finishes</option>
+          {% for opt in finish_options %}
+            <option value="{{ opt }}" {% if finish_f == opt %}selected{% endif %}>{{ opt | title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <select name="set_name">
+          <option value="">All sets</option>
+          {% for s in sets %}
+            <option value="{{ s }}" {% if set_f == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <select name="rarity">
+          <option value="">All rarities</option>
+          {% for r in ["common", "uncommon", "rare", "mythic"] %}
+            <option value="{{ r }}" {% if rarity_f == r %}selected{% endif %}>{{ r | title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% if locations %}
+      <label>
+        <select name="location">
+          <option value="">All locations</option>
+          {% for loc in locations %}
+            <option value="{{ loc }}" {% if location_f == loc %}selected{% endif %}>{{ loc }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+      <label>
+        <select name="sort">
+          <option value="name" {% if sort == "name" %}selected{% endif %}>Sort: Name</option>
+          <option value="value" {% if sort == "value" %}selected{% endif %}>Sort: Value</option>
+          <option value="set" {% if sort == "set" %}selected{% endif %}>Sort: Set</option>
+          <option value="condition" {% if sort == "condition" %}selected{% endif %}>Sort: Condition</option>
+          <option value="added" {% if sort == "added" %}selected{% endif %}>Sort: Recently Added</option>
+          <option value="quantity" {% if sort == "quantity" %}selected{% endif %}>Sort: Quantity</option>
+        </select>
+      </label>
+      <button type="submit" class="button">Filter</button>
+      {% if q or condition_f or finish_f or set_f or rarity_f or location_f %}
+        <a href="{{ url_for('inventory.inventory') }}" class="button button-secondary">Clear</a>
+      {% endif %}
+    </form>
+  </section>
+
+  {% if cards %}
+  <section class="panel">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="thumb-col"></th>
+            <th>Card</th>
+            <th>Set</th>
+            <th>Condition</th>
+            <th>Finish</th>
+            <th>Lang</th>
+            <th>Qty</th>
+            <th>Market</th>
+            <th>Value</th>
+            <th>Location</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for card in cards %}
+            <tr>
+              <td class="thumb-col">
+                {% if card.image_url %}
+                  <span class="card-thumb-wrap">
+                    <img class="card-thumb" src="{{ card.image_url }}" alt="{{ card.name }}" loading="lazy">
+                    <img class="card-thumb-hover" src="{{ card.image_url }}" alt="">
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('cards.edit_card', uid=card.uid) }}" class="card-link">{{ card.name }}</a>
+                {% if card.tag_list %}
+                  <div class="tag-row">{% for tag in card.tag_list %}<span class="tag">{{ tag }}</span>{% endfor %}</div>
+                {% endif %}
+                {% if card.collector_number %}
+                  <div class="muted small">#{{ card.collector_number }}</div>
+                {% endif %}
+              </td>
+              <td class="muted">{{ card.set_name }}</td>
+              <td>
+                <span class="condition-badge condition-{{ card.condition }}">{{ card.condition_label }}</span>
+              </td>
+              <td>{{ card.finish | title }}</td>
+              <td class="muted">{{ card.language }}</td>
+              <td>{{ card.quantity }}</td>
+              <td>{% if card.current_price %}<span class="price">${{ "%.2f"|format(card.current_price) }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+              <td><strong>${{ "%.2f"|format(card.total_value) }}</strong></td>
+              <td class="muted small">
+                {% if card.binder %}{{ card.binder }}{% endif %}
+                {% if card.box %}{{ card.box }}{% endif %}
+              </td>
+              <td class="row-actions">
+                <a href="{{ url_for('cards.edit_card', uid=card.uid) }}" class="link-button">Edit</a>
+                <form method="post" action="{{ url_for('cards.delete_card', uid=card.uid) }}" style="margin:0" onsubmit="return confirm('Delete {{ card.name }}?')">
+                  <button type="submit" class="link-button link-danger">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if pagination.pages > 1 %}
+    <div class="pagination">
+      {% if pagination.has_prev %}
+        <a href="{{ url_for('inventory.inventory', page=pagination.prev_num, q=q, condition=condition_f, finish=finish_f, set_name=set_f, rarity=rarity_f, location=location_f, sort=sort) }}" class="button button-secondary">← Prev</a>
+      {% endif %}
+      <span class="muted">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+      {% if pagination.has_next %}
+        <a href="{{ url_for('inventory.inventory', page=pagination.next_num, q=q, condition=condition_f, finish=finish_f, set_name=set_f, rarity=rarity_f, location=location_f, sort=sort) }}" class="button button-secondary">Next →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="panel">
+    <div class="empty-state">
+      <p>No cards match your filters.</p>
+      <a href="{{ url_for('cards.add_card') }}" class="button" style="margin-top:0.75rem;">Add a Card</a>
+    </div>
+  </section>
+  {% endif %}
+{% endblock %}

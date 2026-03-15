@@ -1,0 +1,34 @@
+services:
+  web:
+    build: .
+    container_name: mtg_collector_web
+    restart: unless-stopped
+    ports:
+      - "5002:5000"
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/mtg_collector
+      SECRET_KEY: dev-secret-key-change-in-prod
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    container_name: mtg_collector_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mtg_collector
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mtg_collector"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

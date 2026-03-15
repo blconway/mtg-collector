@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | MTG Collector{% endblock %}
+{% block content %}
+  <section class="hero panel">
+    <div>
+      <p class="eyebrow">Collection</p>
+      <h2>Your MTG Collection</h2>
+      <p class="hero-copy">Physical card inventory — quantities, conditions, locations, and current market values.</p>
+    </div>
+    <div class="stats-grid">
+      <article class="stat-card">
+        <span class="stat-label">Total Cards</span>
+        <strong>{{ total_cards }}</strong>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Unique Printings</span>
+        <strong>{{ unique_cards }}</strong>
+      </article>
+      <article class="stat-card">
+        <span class="stat-label">Collection Value</span>
+        <strong>${{ "%.2f"|format(total_value) }}</strong>
+      </article>
+    </div>
+  </section>
+
+  <div class="dashboard-grid">
+    {% if by_condition %}
+    <section class="panel">
+      <h3 class="panel-section-title">By Condition</h3>
+      <ul class="stat-list">
+        {% for label, count in by_condition.items() %}
+          <li>
+            <span>{{ label }}</span>
+            <strong>{{ count }}</strong>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if by_finish %}
+    <section class="panel">
+      <h3 class="panel-section-title">By Finish</h3>
+      <ul class="stat-list">
+        {% for label, count in by_finish.items() %}
+          <li>
+            <span>{{ label }}</span>
+            <strong>{{ count }}</strong>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if top_sets %}
+    <section class="panel">
+      <h3 class="panel-section-title">Top Sets</h3>
+      <ul class="stat-list">
+        {% for set_name, qty in top_sets %}
+          <li>
+            <span>{{ set_name }}</span>
+            <strong>{{ qty }}</strong>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+
+  {% if recent %}
+  <section class="panel">
+    <h3 class="panel-section-title">Recently Added</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="thumb-col"></th>
+            <th>Card</th>
+            <th>Set</th>
+            <th>Condition</th>
+            <th>Finish</th>
+            <th>Qty</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for card in recent %}
+            <tr>
+              <td class="thumb-col">
+                {% if card.image_url %}
+                  <span class="card-thumb-wrap">
+                    <img class="card-thumb" src="{{ card.image_url }}" alt="{{ card.name }}" loading="lazy">
+                    <img class="card-thumb-hover" src="{{ card.image_url }}" alt="">
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('cards.edit_card', uid=card.uid) }}" class="card-link">{{ card.name }}</a>
+                {% if card.tag_list %}
+                  <div class="tag-row">
+                    {% for tag in card.tag_list %}<span class="tag">{{ tag }}</span>{% endfor %}
+                  </div>
+                {% endif %}
+              </td>
+              <td><span class="muted">{{ card.set_name }}</span></td>
+              <td>{{ card.condition_label }}</td>
+              <td>{{ card.finish | title }}</td>
+              <td>{{ card.quantity }}</td>
+              <td>${{ "%.2f"|format(card.total_value) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:0.75rem;">
+      <a href="{{ url_for('inventory.inventory') }}" class="button button-secondary">View All Cards</a>
+    </div>
+  </section>
+  {% else %}
+  <section class="panel empty-panel">
+    <p class="muted">No cards yet.</p>
+    <a href="{{ url_for('cards.add_card') }}" class="button" style="margin-top:0.75rem;">Add Your First Card</a>
+  </section>
+  {% endif %}
+{% endblock %}

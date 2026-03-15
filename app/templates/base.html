@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}MTG Collector{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="page-shell" style="display:flex;justify-content:space-between;align-items:center;padding-top:0.75rem;padding-bottom:0.75rem;">
+      <div>
+        <h1><a href="{{ url_for('inventory.index') }}">MTG Collector</a></h1>
+      </div>
+      <nav class="site-nav">
+        <a href="{{ url_for('inventory.index') }}">Dashboard</a>
+        <a href="{{ url_for('inventory.inventory') }}">Collection</a>
+        <a href="{{ url_for('cards.add_card') }}">Add Card</a>
+        <a href="{{ url_for('inventory.export_csv') }}">Export CSV</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page-shell">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-stack">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
