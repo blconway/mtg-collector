@@ -23,15 +23,23 @@ Track your physical MTG cards with Scryfall integration, automatic price updates
   - `1 Aegis Angel (W16) 1 Foil`
   - Split cards: `2 Archangel Avacyn // Avacyn, the Purifier (SOI) 5`
 - **Upload CSV** — auto-detects columns (Name, Quantity, Set, Condition, Finish, etc.). Compatible with exports from Deckbox, Moxfield, and TCGPlayer.
-- **Precon deck search** — search MTGJSON's database of 2,600+ precon decks by name, load the full deck list with Scryfall data, and import
+- **Precon deck search** — search [MTGJSON's](https://mtgjson.com/) database of 2,600+ individual precon decks (commander decks, intro packs, challenger decks, etc.) by name, load the full deck list with Scryfall data, and import
 - **Set search** — import all cards from any Scryfall set
+- **Auto-merge on import** — importing a card that already exists in your collection (same printing, condition, finish, language) automatically adds to its quantity instead of creating a duplicate
 - **Preview before importing** — review matched cards, remove unwanted entries, then commit
 
 ### Pricing
+- **Collection value display** — total cards, unique count, and market value in the sidebar
 - **Automatic daily price refresh** via Scryfall (runs in background via APScheduler)
-- **Manual price refresh** button in the sidebar
-- **Collection value display** — total cards, unique count, and market value at a glance
+- **Manual price refresh** via the tools menu
 - Per-card market price, foil price, and purchase price tracking
+
+### Tools Menu
+Advanced actions available from the gear icon in the toolbar:
+- **Refresh Prices** — manually trigger a Scryfall price update for all cards
+- **Merge Duplicates** — find and combine cards sharing the same printing, condition, finish, and language (sums quantities, merges tags/notes)
+- **Changelog** — view history of all adds, imports, and deletes with undo support
+- **Delete All Cards** — requires typing `delete-all` to confirm
 
 ### Export
 - **CSV export** of entire collection
@@ -69,7 +77,7 @@ python run.py
 |-----------|-----------|
 | Backend | Flask 3.1, SQLAlchemy 2.0 |
 | Database | PostgreSQL 16 |
-| Card Data | Scryfall API, MTGJSON API |
+| Card Data | [Scryfall API](https://scryfall.com/docs/api), [MTGJSON API](https://mtgjson.com/) |
 | Background Jobs | APScheduler |
 | Frontend | Vanilla JS, custom CSS (dark theme) |
 | Container | Docker, Docker Compose |
@@ -92,13 +100,13 @@ mtg-collector/
 │   ├── __init__.py              # Flask app factory
 │   ├── config.py                # Configuration
 │   ├── extensions.py            # SQLAlchemy init
-│   ├── models.py                # Card model
+│   ├── models.py                # Card and ChangeLog models
 │   ├── routes/
 │   │   ├── api.py               # JSON API + import/export endpoints
-│   │   ├── cards.py             # Card CRUD
+│   │   ├── cards.py             # Card CRUD with changelog logging
 │   │   └── inventory.py         # Collection view + CSV export
 │   ├── services/
-│   │   ├── importer.py          # Text/CSV parsers
+│   │   ├── importer.py          # Text/CSV parsers with auto-merge
 │   │   ├── mtgjson.py           # MTGJSON deck list client
 │   │   ├── prices.py            # Background price refresh
 │   │   └── scryfall.py          # Scryfall API client
@@ -130,13 +138,15 @@ mtg-collector/
 - `GET /api/groups?group_by=` — group tree for sidebar
 - `GET /api/cards?group_by=&group_value=&sort=&q=&page=` — paginated card list
 - `GET /api/cards/<uid>` — single card detail
-- `POST /cards/add` — create card
+- `POST /cards/add` — create card (logged to changelog)
 - `POST /cards/<uid>/edit` — update card
-- `POST /cards/<uid>/delete` — delete card
+- `POST /cards/<uid>/delete` — delete card (logged to changelog)
+- `POST /api/collection/deduplicate` — merge duplicate entries
+- `POST /api/collection/delete-all` — delete all cards (requires `{"confirmation": "delete-all"}`)
 
 ### Import
 - `POST /api/import/parse` — parse text list or CSV, resolve via Scryfall
-- `POST /api/import/commit` — bulk-create cards from parsed data
+- `POST /api/import/commit` — bulk-create or merge cards from parsed data (logged to changelog)
 - `GET /api/decks/search?q=` — search MTGJSON precon decks
 - `GET /api/decks/<fileName>/cards` — fetch and resolve a precon deck
 - `GET /api/sets/search?q=` — search Scryfall sets
@@ -145,9 +155,13 @@ mtg-collector/
 ### Pricing
 - `POST /api/prices/refresh` — trigger manual price refresh
 
+### Changelog
+- `GET /api/changelog` — list changelog entries
+- `POST /api/changelog/<uid>/undo` — undo an add, import, or delete
+
 ### Export
 - `GET /export` — download collection as CSV
 
 ## License
 
-MIT
+[MIT](LICENSE)
