@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Collection | MTG Collector{% endblock %}
+{% block main_class %}collection-main{% endblock %}
+{% block content %}
+<div class="collection-layout" id="collection-layout">
+  <!-- LEFT: Group sidebar -->
+  <aside class="group-sidebar" id="group-sidebar">
+    <div class="collection-stats" id="collection-stats">
+      <div class="stats-row">
+        <div class="stat-item">
+          <span class="stat-item-value" id="stat-total-cards">—</span>
+          <span class="stat-item-label">Cards</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-item-value" id="stat-unique-cards">—</span>
+          <span class="stat-item-label">Unique</span>
+        </div>
+        <div class="stat-item stat-item-value-highlight">
+          <span class="stat-item-value price" id="stat-total-value">—</span>
+          <span class="stat-item-label">Value</span>
+        </div>
+      </div>
+      <div class="stats-refresh-row">
+        <span class="muted small" id="stat-price-updated">Prices: never updated</span>
+        <button class="link-button small" id="refresh-prices-btn" title="Refresh all prices from Scryfall">Refresh Prices</button>
+      </div>
+    </div>
+    <div class="sidebar-header">
+      <label class="sidebar-label">Group by</label>
+      <select id="group-by-select" class="group-by-select">
+        <option value="set_name">Set</option>
+        <option value="color_identity">Color</option>
+        <option value="rarity">Rarity</option>
+        <option value="condition">Condition</option>
+        <option value="finish">Finish</option>
+        <option value="type_line">Type</option>
+        <option value="binder">Binder</option>
+        <option value="box">Box</option>
+        <option value="tags">Tag</option>
+      </select>
+    </div>
+    <div class="sidebar-tree" id="sidebar-tree">
+      <div class="sidebar-loading">Loading...</div>
+    </div>
+  </aside>
+
+  <!-- Vertical resize handle -->
+  <div class="resize-handle resize-handle-v" id="resize-v"></div>
+
+  <!-- RIGHT: List + Detail -->
+  <div class="right-panes" id="right-panes">
+    <!-- TOP-RIGHT: Card list -->
+    <div class="list-pane" id="list-pane">
+      <div class="list-toolbar">
+        <input type="search" id="list-search" placeholder="Filter cards..." class="list-search">
+        <select id="list-sort" class="list-sort">
+          <option value="name">Name</option>
+          <option value="set">Set</option>
+          <option value="value">Value</option>
+          <option value="rarity">Rarity</option>
+          <option value="condition">Condition</option>
+          <option value="added">Recently Added</option>
+          <option value="quantity">Quantity</option>
+        </select>
+        <button id="view-toggle" class="button button-sm" title="Toggle grid view">Grid</button>
+        <button id="import-btn" class="button button-sm">Import</button>
+        <button id="add-card-btn" class="button button-sm button-accent">+ Add Card</button>
+      </div>
+      <div class="list-content" id="list-content">
+        <div class="empty-state">Loading collection...</div>
+      </div>
+      <div class="list-pagination" id="list-pagination"></div>
+    </div>
+
+    <!-- Horizontal resize handle -->
+    <div class="resize-handle resize-handle-h" id="resize-h"></div>
+
+    <!-- BOTTOM-RIGHT: Detail panel -->
+    <div class="detail-pane" id="detail-pane">
+      <div class="detail-empty">Select a card to view details</div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal overlay -->
+<div class="modal-overlay" id="card-modal">
+  <div class="modal-content" id="modal-content"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='collection.js') }}"></script>
+{% endblock %}

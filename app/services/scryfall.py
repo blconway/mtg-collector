@@ -52,6 +52,85 @@ def get_card_by_id(scryfall_id: str) -> dict | None:
         return None
 
 
+def search_card(name: str, set_code: str | None = None,
+                collector_number: str | None = None) -> dict | None:
+    """Search for a single card by exact name, optionally filtered by set and collector number."""
+    # If we have both set code and collector number, use the exact endpoint
+    if set_code and collector_number:
+        try:
+            data = _get(f"/cards/{set_code.lower()}/{collector_number}")
+            return _format_card(data)
+        except ScryfallError:
+            pass  # Fall through to name search
+
+    # Otherwise search by name + optional set
+    try:
+        query = f'!"{name}"'
+        if set_code:
+            query += f" set:{set_code.lower()}"
+        data = _get("/cards/search", {"q": query, "unique": "prints", "order": "released", "dir": "desc"})
+        results = data.get("data", [])
+        if results:
+            return _format_card(results[0])
+        return None
+    except ScryfallError:
+        return None
+
+
+_SKIP_SET_TYPES = {"token", "memorabilia", "minigame", "planar", "vanguard", "art_series"}
+
+
+def search_sets(query: str) -> list[dict]:
+    """Search Scryfall sets, returning those matching the query."""
+    try:
+        data = _get("/sets")
+        all_sets = data.get("data", [])
+        q = query.lower()
+        results = []
+        for s in all_sets:
+            set_type = s.get("set_type", "")
+            if set_type in _SKIP_SET_TYPES:
+                continue
+            name = s.get("name", "").lower()
+            code = s.get("code", "").lower()
+            if q in name or q == code:
+                results.append({
+                    "code": s["code"],
+                    "name": s["name"],
+                    "set_type": set_type,
+                    "card_count": s.get("card_count", 0),
+                    "released_at": s.get("released_at", ""),
+                    "icon_svg_uri": s.get("icon_svg_uri", ""),
+                })
+        # Sort: exact code match first, then by release date descending
+        results.sort(key=lambda s: (s["code"].lower() != q, s["released_at"]), reverse=True)
+        return results[:20]
+    except ScryfallError:
+        return []
+
+
+def get_set_cards(set_code: str) -> list[dict]:
+    """Fetch all cards from a set."""
+    try:
+        cards = []
+        page = 1
+        while True:
+            data = _get("/cards/search", {
+                "q": f"set:{set_code.lower()}",
+                "unique": "prints",
+                "order": "set",
+                "page": page,
+            })
+            for c in data.get("data", []):
+                cards.append(_format_card(c))
+            if not data.get("has_more"):
+                break
+            page += 1
+        return cards
+    except ScryfallError:
+        return []
+
+
 def get_prices(scryfall_id: str) -> dict:
     try:
         data = _get(f"/cards/{scryfall_id}")

@@ -10,17 +10,16 @@
   <header class="site-header">
     <div class="page-shell" style="display:flex;justify-content:space-between;align-items:center;padding-top:0.75rem;padding-bottom:0.75rem;">
       <div>
-        <h1><a href="{{ url_for('inventory.index') }}">MTG Collector</a></h1>
+        <h1><a href="{{ url_for('inventory.collection') }}">MTG Collector</a></h1>
       </div>
       <nav class="site-nav">
-        <a href="{{ url_for('inventory.index') }}">Dashboard</a>
-        <a href="{{ url_for('inventory.inventory') }}">Collection</a>
+        <a href="{{ url_for('inventory.collection') }}">Collection</a>
         <a href="{{ url_for('cards.add_card') }}">Add Card</a>
         <a href="{{ url_for('inventory.export_csv') }}">Export CSV</a>
       </nav>
     </div>
   </header>
-  <main class="page-shell">
+  <main class="{% block main_class %}page-shell{% endblock %}">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="flash-stack">
@@ -32,5 +31,6 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,93 @@
+<div class="modal-header">
+  <h3>Import Cards</h3>
+  <button type="button" class="modal-close" id="modal-close-btn">&times;</button>
+</div>
+
+<div class="import-tabs" id="import-tabs">
+  <button class="import-tab active" data-tab="text">Paste List</button>
+  <button class="import-tab" data-tab="csv">Upload CSV</button>
+  <button class="import-tab" data-tab="precon">Precon / Set</button>
+</div>
+
+<!-- Paste List tab -->
+<div class="import-tab-content active" id="import-tab-text">
+  <p class="muted small" style="margin:0 0 0.5rem">
+    One card per line. Supports: <code>2x Sol Ring</code>, <code>1 Lightning Bolt (MH3)</code>, <code>1 Aegis Angel (W16) 1 Foil</code>
+  </p>
+  <textarea id="import-text-input" class="import-textarea" rows="10" placeholder="2x Sol Ring
+1 Lightning Bolt (MH3)
+1 Aegis Angel (W16) 1
+1 Ambush Commander (DD1) 1 Foil
+Counterspell"></textarea>
+  <div class="import-actions">
+    <button class="button button-accent" id="import-parse-text-btn">Parse List</button>
+  </div>
+</div>
+
+<!-- Upload CSV tab -->
+<div class="import-tab-content" id="import-tab-csv">
+  <p class="muted small" style="margin:0 0 0.5rem">
+    Upload a CSV file with at least a <code>Name</code> column. Optional columns: Quantity, Set, Set Code, Condition, Finish, Language, Purchase Price, Tags, Notes.
+  </p>
+  <div class="import-file-row">
+    <input type="file" id="import-csv-file" accept=".csv,text/csv" class="import-file-input">
+  </div>
+  <div id="import-csv-status" class="muted small" style="margin-top:0.5rem" hidden></div>
+</div>
+
+<!-- Precon / Set tab -->
+<div class="import-tab-content" id="import-tab-precon">
+  <p class="muted small" style="margin:0 0 0.5rem">
+    Search for a precon deck (individual commander decks, intro packs, etc.) or an entire set.
+  </p>
+  <div class="precon-search-row">
+    <input type="text" id="precon-search" placeholder="e.g. Final Fantasy, Commander 2024, Duskmourn..." autocomplete="off" class="precon-search-input">
+    <div class="precon-search-type">
+      <label class="precon-radio"><input type="radio" name="precon-type" value="decks" checked> Decks</label>
+      <label class="precon-radio"><input type="radio" name="precon-type" value="sets"> Sets</label>
+    </div>
+  </div>
+  <div id="precon-results" class="precon-results"></div>
+</div>
+
+<!-- Progress indicator -->
+<div id="import-progress" class="import-progress" hidden>
+  <div class="import-progress-text" id="import-progress-text">Resolving cards on Scryfall...</div>
+  <div class="import-progress-bar">
+    <div class="import-progress-fill" id="import-progress-fill"></div>
+  </div>
+</div>
+
+<!-- Preview table -->
+<div id="import-preview" hidden>
+  <div id="import-warnings"></div>
+  <div class="import-preview-header">
+    <span id="import-preview-count" class="muted small"></span>
+    <button class="button button-accent" id="import-commit-btn">Import All</button>
+  </div>
+  <div class="import-preview-table-wrap">
+    <table class="import-preview-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Name</th>
+          <th>Set</th>
+          <th>Qty</th>
+          <th>Condition</th>
+          <th>Finish</th>
+          <th>Price</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="import-preview-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Result message -->
+<div id="import-result" hidden>
+  <div class="import-result-message"></div>
+  <div class="import-actions">
+    <button class="button" id="import-done-btn">Done</button>
+  </div>
+</div>

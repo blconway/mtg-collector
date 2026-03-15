@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 
 from app.extensions import db
 from app.models import (
@@ -13,6 +13,13 @@ from app.models import (
 from app.services.scryfall import get_card_by_id
 
 cards_bp = Blueprint("cards", __name__)
+
+
+def _wants_json() -> bool:
+    return (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or request.accept_mimetypes.best == "application/json"
+    )
 
 
 def _parse_decimal(val: str) -> Decimal:
@@ -108,13 +115,17 @@ def add_card_post():
     card = Card()
     errors = _apply_form(card)
     if errors:
+        if _wants_json():
+            return jsonify({"ok": False, "errors": errors}), 400
         for e in errors:
             flash(e, "error")
         return redirect(url_for("cards.add_card"))
     db.session.add(card)
     db.session.commit()
+    if _wants_json():
+        return jsonify({"ok": True, "card": card.to_dict(), "message": f"Added {card.name}."})
     flash(f"Added {card.name}.", "success")
-    return redirect(url_for("inventory.inventory"))
+    return redirect(url_for("inventory.collection"))
 
 
 @cards_bp.get("/cards/<uid>/edit")
@@ -135,12 +146,16 @@ def edit_card_post(uid: str):
     card = Card.query.filter_by(uid=uid).first_or_404()
     errors = _apply_form(card)
     if errors:
+        if _wants_json():
+            return jsonify({"ok": False, "errors": errors}), 400
         for e in errors:
             flash(e, "error")
         return redirect(url_for("cards.edit_card", uid=uid))
     db.session.commit()
+    if _wants_json():
+        return jsonify({"ok": True, "card": card.to_dict(), "message": f"Saved {card.name}."})
     flash(f"Saved {card.name}.", "success")
-    return redirect(url_for("inventory.inventory"))
+    return redirect(url_for("inventory.collection"))
 
 
 @cards_bp.post("/cards/<uid>/delete")
@@ -149,5 +164,7 @@ def delete_card(uid: str):
     name = card.name
     db.session.delete(card)
     db.session.commit()
+    if _wants_json():
+        return jsonify({"ok": True, "message": f"Deleted {name}."})
     flash(f"Deleted {name}.", "success")
-    return redirect(url_for("inventory.inventory"))
+    return redirect(url_for("inventory.collection"))

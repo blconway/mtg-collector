@@ -1,0 +1,159 @@
+<div class="modal-header">
+  <h3>{% if card %}Edit Card{% else %}Add Card{% endif %}</h3>
+  <button type="button" class="modal-close" id="modal-close-btn">&times;</button>
+</div>
+
+{% if not card %}
+<div class="scryfall-lookup" id="modal-scryfall-lookup">
+  <h4 class="lookup-title">Step 1 — Find the card</h4>
+  <div class="lookup-row">
+    <div class="lookup-search-wrap">
+      <input
+        type="text"
+        id="modal-scryfall-search"
+        placeholder="Type a card name..."
+        autocomplete="off"
+        class="lookup-input"
+      >
+      <ul id="modal-autocomplete-list" class="autocomplete-list" hidden></ul>
+    </div>
+    <div id="modal-print-select-wrap" hidden>
+      <select id="modal-print-select" class="print-select">
+        <option value="">Select printing...</option>
+      </select>
+    </div>
+  </div>
+  <p id="modal-lookup-status" class="muted small" hidden></p>
+</div>
+{% endif %}
+
+<div id="modal-card-form-section" {% if not card %}hidden{% endif %}>
+  {% if card %}
+    <div class="card-preview-row">
+      {% if card.image_url %}
+        <img src="{{ card.image_url }}" alt="{{ card.name }}" class="card-preview-img">
+      {% endif %}
+      <div class="card-preview-meta">
+        <h3>{{ card.name }}</h3>
+        <p class="muted">{{ card.set_name }}{% if card.collector_number %} · #{{ card.collector_number }}{% endif %}</p>
+        {% if card.type_line %}<p class="muted small">{{ card.type_line }}</p>{% endif %}
+        {% if card.scryfall_uri %}<a href="{{ card.scryfall_uri }}" target="_blank" rel="noreferrer" class="link-small">Scryfall ↗</a>{% endif %}
+      </div>
+    </div>
+  {% else %}
+    <div id="modal-card-preview-row" class="card-preview-row" hidden>
+      <img id="modal-card-preview-img" src="" alt="" class="card-preview-img">
+      <div class="card-preview-meta">
+        <h3 id="modal-preview-name"></h3>
+        <p id="modal-preview-set" class="muted"></p>
+        <p id="modal-preview-type" class="muted small"></p>
+        <a id="modal-preview-scryfall-link" href="#" target="_blank" rel="noreferrer" class="link-small" hidden>Scryfall ↗</a>
+      </div>
+    </div>
+  {% endif %}
+
+  <form
+    method="post"
+    action="{% if card %}{{ url_for('cards.edit_card_post', uid=card.uid) }}{% else %}{{ url_for('cards.add_card_post') }}{% endif %}"
+    id="modal-card-form"
+  >
+    <input type="hidden" name="name" id="modal-f-name" value="{{ card.name if card else '' }}">
+    <input type="hidden" name="set_name" id="modal-f-set-name" value="{{ card.set_name if card else '' }}">
+    <input type="hidden" name="set_code" id="modal-f-set-code" value="{{ card.set_code or '' if card else '' }}">
+    <input type="hidden" name="collector_number" id="modal-f-collector-number" value="{{ card.collector_number or '' if card else '' }}">
+    <input type="hidden" name="scryfall_id" id="modal-f-scryfall-id" value="{{ card.scryfall_id or '' if card else '' }}">
+    <input type="hidden" name="oracle_id" id="modal-f-oracle-id" value="{{ card.oracle_id or '' if card else '' }}">
+    <input type="hidden" name="type_line" id="modal-f-type-line" value="{{ card.type_line or '' if card else '' }}">
+    <input type="hidden" name="mana_cost" id="modal-f-mana-cost" value="{{ card.mana_cost or '' if card else '' }}">
+    <input type="hidden" name="oracle_text" id="modal-f-oracle-text" value="{{ card.oracle_text or '' if card else '' }}">
+    <input type="hidden" name="rarity" id="modal-f-rarity" value="{{ card.rarity or '' if card else '' }}">
+    <input type="hidden" name="color_identity" id="modal-f-color-identity" value="{{ card.color_identity or '' if card else '' }}">
+    <input type="hidden" name="image_url" id="modal-f-image-url" value="{{ card.image_url or '' if card else '' }}">
+    <input type="hidden" name="scryfall_uri" id="modal-f-scryfall-uri" value="{{ card.scryfall_uri or '' if card else '' }}">
+    <input type="hidden" name="market_price" id="modal-f-market-price" value="{{ card.market_price or '' if card else '' }}">
+    <input type="hidden" name="foil_price" id="modal-f-foil-price" value="{{ card.foil_price or '' if card else '' }}">
+
+    <h4 class="form-section-title">{% if card %}Physical Details{% else %}Step 2 — Physical Details{% endif %}</h4>
+
+    <div class="card-form-grid">
+      <label>
+        Condition
+        <select name="condition" required>
+          {% for opt in condition_options %}
+            <option value="{{ opt }}" {% if (card and card.condition == opt) or (not card and opt == 'near_mint') %}selected{% endif %}>{{ condition_labels[opt] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>
+        Finish
+        <select name="finish" id="modal-f-finish">
+          {% for opt in finish_options %}
+            <option value="{{ opt }}" {% if (card and card.finish == opt) or (not card and opt == 'nonfoil') %}selected{% endif %}>{{ opt | title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>
+        Language
+        <select name="language">
+          {% for opt in language_options %}
+            <option value="{{ opt }}" {% if (card and card.language == opt) or (not card and opt == 'English') %}selected{% endif %}>{{ opt }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>
+        Quantity
+        <input type="number" name="quantity" min="1" value="{{ card.quantity if card else 1 }}" required>
+      </label>
+
+      <label>
+        Purchase Price
+        <input type="text" name="purchase_price" placeholder="0.00" value="{{ card.purchase_price if card else '' }}">
+      </label>
+
+      <label>
+        Acquired
+        <input type="date" name="acquired_at" value="{{ card.acquired_at.isoformat() if card and card.acquired_at else '' }}">
+      </label>
+    </div>
+
+    <h4 class="form-section-title">Storage Location</h4>
+    <div class="card-form-grid">
+      <label>
+        Binder
+        <input type="text" name="binder" placeholder="Binder A" value="{{ card.binder or '' if card else '' }}">
+      </label>
+      <label>
+        Box
+        <input type="text" name="box" placeholder="Commander Box" value="{{ card.box or '' if card else '' }}">
+      </label>
+      <label>
+        Row
+        <input type="text" name="row" placeholder="3" value="{{ card.row or '' if card else '' }}">
+      </label>
+      <label>
+        Slot
+        <input type="text" name="slot" placeholder="14" value="{{ card.slot or '' if card else '' }}">
+      </label>
+    </div>
+
+    <h4 class="form-section-title">Notes & Tags</h4>
+    <div class="card-form-grid card-form-wide">
+      <label class="full-width">
+        Tags <span class="muted small">(comma-separated)</span>
+        <input type="text" name="tags" placeholder="commander staple, cube, trade" value="{{ card.tags or '' if card else '' }}">
+      </label>
+      <label class="full-width">
+        Notes
+        <textarea name="notes" rows="3" placeholder="Any notes about this copy...">{{ card.notes or '' if card else '' }}</textarea>
+      </label>
+    </div>
+
+    <div class="form-submit-row">
+      <button type="submit" class="button">{% if card %}Save Changes{% else %}Add to Collection{% endif %}</button>
+      <button type="button" class="button button-secondary" id="modal-cancel-btn">Cancel</button>
+    </div>
+  </form>
+</div>

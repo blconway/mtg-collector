@@ -120,3 +120,39 @@ class Card(db.Model):
         if not self.tags:
             return []
         return [t.strip() for t in self.tags.split(",") if t.strip()]
+
+    def to_dict(self) -> dict:
+        return {
+            "uid": self.uid,
+            "name": self.name,
+            "set_name": self.set_name,
+            "set_code": self.set_code,
+            "collector_number": self.collector_number,
+            "type_line": self.type_line,
+            "mana_cost": self.mana_cost,
+            "oracle_text": self.oracle_text,
+            "rarity": self.rarity,
+            "color_identity": self.color_identity,
+            "image_url": self.image_url,
+            "scryfall_uri": self.scryfall_uri,
+            "scryfall_id": self.scryfall_id,
+            "quantity": self.quantity,
+            "condition": self.condition,
+            "condition_label": self.condition_label,
+            "finish": self.finish,
+            "language": self.language,
+            "binder": self.binder,
+            "box": self.box,
+            "row": self.row,
+            "slot": self.slot,
+            "purchase_price": str(self.purchase_price),
+            "market_price": str(self.market_price) if self.market_price else None,
+            "foil_price": str(self.foil_price) if self.foil_price else None,
+            "current_price": str(self.current_price),
+            "total_value": str(self.total_value),
+            "notes": self.notes,
+            "tags": self.tags,
+            "tag_list": self.tag_list,
+            "acquired_at": self.acquired_at.isoformat() if self.acquired_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
