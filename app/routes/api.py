@@ -28,6 +28,29 @@ def card_autocomplete():
     return jsonify({"results": autocomplete(q)})
 
 
+@api_bp.get("/search")
+def global_search():
+    """Autocomplete with owned-quantity info for each name."""
+    q = request.args.get("q", "").strip()
+    names = autocomplete(q)
+    if not names:
+        return jsonify({"results": []})
+
+    # Get owned quantities grouped by card name
+    owned = dict(
+        db.session.query(Card.name, func.sum(Card.quantity))
+        .filter(Card.name.in_(names))
+        .group_by(Card.name)
+        .all()
+    )
+
+    results = []
+    for name in names:
+        qty = int(owned.get(name, 0))
+        results.append({"name": name, "owned": qty})
+    return jsonify({"results": results})
+
+
 @api_bp.get("/collection/stats")
 def collection_stats():
     """Return collection summary stats."""
