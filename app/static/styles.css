@@ -829,6 +829,34 @@ tbody tr:hover { background: rgba(255,255,255,0.03); }
   font-size: 0.78rem;
 }
 
+.list-content th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.list-content th.sortable:hover {
+  color: var(--accent, #8b78f0);
+}
+
+.list-content th.sortable::after {
+  content: "⇅";
+  margin-left: 0.3rem;
+  opacity: 0.3;
+  font-size: 0.7rem;
+}
+
+.list-content th.sorted::after {
+  opacity: 1;
+}
+
+.list-content th.sorted[data-dir="asc"]::after {
+  content: "↑";
+}
+
+.list-content th.sorted[data-dir="desc"]::after {
+  content: "↓";
+}
+
 .list-content tbody tr {
   cursor: pointer;
 }

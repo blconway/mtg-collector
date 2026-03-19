@@ -301,7 +301,7 @@ def _groups_by_condition():
     return jsonify({"group_by": "condition", "total": total, "groups": result})
 
 
-def _build_card_query(group_by, group_value, q, sort):
+def _build_card_query(group_by, group_value, q, sort, sort_dir="asc"):
     """Build a filtered and sorted Card query."""
     query = Card.query
 
@@ -331,16 +331,21 @@ def _build_card_query(group_by, group_value, q, sort):
                 else:
                     query = query.filter(column == group_value)
 
-    sort_map = {
-        "name": Card.name.asc(),
-        "value": Card.market_price.desc().nullslast(),
-        "condition": Card.condition.asc(),
-        "set": Card.set_name.asc(),
-        "added": Card.created_at.desc(),
-        "quantity": Card.quantity.desc(),
-        "rarity": Card.rarity.asc(),
+    column_map = {
+        "name": Card.name,
+        "value": Card.market_price,
+        "condition": Card.condition,
+        "set": Card.set_name,
+        "added": Card.created_at,
+        "quantity": Card.quantity,
+        "rarity": Card.rarity,
     }
-    query = query.order_by(sort_map.get(sort, Card.name.asc()), Card.name.asc())
+    col = column_map.get(sort, Card.name)
+    if sort_dir == "desc":
+        order = col.desc().nullslast()
+    else:
+        order = col.asc().nullsfirst()
+    query = query.order_by(order, Card.name.asc())
     return query
 
 
@@ -351,10 +356,13 @@ def cards_list():
     group_value = request.args.get("group_value", None)
     q = request.args.get("q", "").strip()
     sort = request.args.get("sort", "name")
+    sort_dir = request.args.get("sort_dir", "asc")
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "asc"
     page = max(1, request.args.get("page", 1, type=int))
     per_page = 30
 
-    query = _build_card_query(group_by, group_value, q, sort)
+    query = _build_card_query(group_by, group_value, q, sort, sort_dir)
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return jsonify({

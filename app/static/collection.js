@@ -9,6 +9,7 @@
     selectedCardUid: null,
     viewMode: "list",      // "list" or "grid"
     sort: "name",
+    sortDir: "asc",
     search: "",
     page: 1,
   };
@@ -50,6 +51,7 @@
     }
     if (state.search) params.set("q", state.search);
     params.set("sort", state.sort);
+    params.set("sort_dir", state.sortDir);
     params.set("page", state.page);
     return api(`/api/cards?${params}`);
   }
@@ -239,15 +241,41 @@
 
     const table = document.createElement("table");
     const thead = document.createElement("thead");
-    thead.innerHTML = `<tr>
-      <th class="thumb-cell"></th>
-      <th>Name</th>
-      <th>Set</th>
-      <th>Rarity</th>
-      <th>Condition</th>
-      <th>Qty</th>
-      <th>Price</th>
-    </tr>`;
+    const sortCols = [
+      { key: null, label: "", cls: "thumb-cell" },
+      { key: "name", label: "Name" },
+      { key: "set", label: "Set" },
+      { key: "rarity", label: "Rarity" },
+      { key: "condition", label: "Condition" },
+      { key: "quantity", label: "Qty" },
+      { key: "value", label: "Price" },
+    ];
+    const headRow = document.createElement("tr");
+    for (const col of sortCols) {
+      const th = document.createElement("th");
+      if (col.cls) th.className = col.cls;
+      if (col.key) {
+        th.className = (th.className ? th.className + " " : "") + "sortable";
+        if (state.sort === col.key) {
+          th.classList.add("sorted");
+          th.dataset.dir = state.sortDir;
+        }
+        th.textContent = col.label;
+        th.addEventListener("click", () => {
+          if (state.sort === col.key) {
+            state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+          } else {
+            state.sort = col.key;
+            state.sortDir = "asc";
+          }
+          if ($listSort) $listSort.value = state.sort;
+          state.page = 1;
+          loadList();
+        });
+      }
+      headRow.appendChild(th);
+    }
+    thead.appendChild(headRow);
     table.appendChild(thead);
 
     const tbody = document.createElement("tbody");
@@ -1338,6 +1366,7 @@
     // Sort
     $listSort.addEventListener("change", () => {
       state.sort = $listSort.value;
+      state.sortDir = "asc";
       state.page = 1;
       loadList();
     });
