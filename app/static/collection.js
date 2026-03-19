@@ -22,8 +22,7 @@
   const $listSearch = document.getElementById("list-search");
   const $listSort = document.getElementById("list-sort");
   const $viewToggle = document.getElementById("view-toggle");
-  const $globalSearch = document.getElementById("global-search");
-  const $globalResults = document.getElementById("global-search-results");
+  const $addCardBtn = document.getElementById("add-card-btn");
   const $listContent = document.getElementById("list-content");
   const $listPagination = document.getElementById("list-pagination");
   const $detailPane = document.getElementById("detail-pane");
@@ -494,77 +493,16 @@
     document.getElementById("detail-delete-btn").addEventListener("click", () => deleteCard(card.uid, card.name));
   }
 
-  // ── Global search (add card) ───────────────────────────────────────────────
-
-  function initGlobalSearch() {
-    let timer = null;
-
-    $globalSearch.addEventListener("input", () => {
-      clearTimeout(timer);
-      const q = $globalSearch.value.trim();
-      if (q.length < 2) { $globalResults.hidden = true; return; }
-      timer = setTimeout(async () => {
-        try {
-          const resp = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-          const data = await resp.json();
-          renderGlobalResults(data.results || []);
-        } catch { $globalResults.hidden = true; }
-      }, 250);
-    });
-
-    $globalSearch.addEventListener("blur", () => {
-      setTimeout(() => { $globalResults.hidden = true; }, 200);
-    });
-
-    $globalSearch.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        $globalResults.hidden = true;
-        $globalSearch.blur();
-      }
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const first = $globalResults.querySelector("li");
-        if (first) first.click();
-      }
-    });
-
-    function renderGlobalResults(results) {
-      $globalResults.innerHTML = "";
-      if (!results.length) { $globalResults.hidden = true; return; }
-      for (const r of results.slice(0, 8)) {
-        const li = document.createElement("li");
-        const nameSpan = document.createElement("span");
-        nameSpan.className = "gs-name";
-        nameSpan.textContent = r.name;
-        li.appendChild(nameSpan);
-        if (r.owned > 0) {
-          const badge = document.createElement("span");
-          badge.className = "gs-owned";
-          badge.textContent = `×${r.owned} owned`;
-          li.appendChild(badge);
-        }
-        li.addEventListener("mousedown", (e) => {
-          e.preventDefault();
-          $globalSearch.value = "";
-          $globalResults.hidden = true;
-          openAddModal(r.name);
-        });
-        $globalResults.appendChild(li);
-      }
-      $globalResults.hidden = false;
-    }
-  }
-
   // ── Modal ──────────────────────────────────────────────────────────────────
 
-  async function openAddModal(cardName) {
+  async function openAddModal() {
     try {
       const resp = await fetch("/api/card-form");
       const html = await resp.text();
       $modalContent.innerHTML = html;
       $modal.classList.add("open");
       bindModalEvents();
-      initModalLookup(cardName);
+      initModalLookup();
     } catch {
       alert("Failed to load form");
     }
@@ -624,7 +562,7 @@
     }
   }
 
-  function initModalLookup(prefilledName) {
+  function initModalLookup() {
     const searchInput = document.getElementById("modal-scryfall-search");
     if (!searchInput) return;
 
@@ -759,11 +697,7 @@
       formSection.hidden = false;
     }
 
-    if (prefilledName) {
-      pickName(prefilledName);
-    } else {
-      setTimeout(() => searchInput.focus(), 100);
-    }
+    setTimeout(() => searchInput.focus(), 100);
   }
 
   // ── Changelog modal ────────────────────────────────────────────────────────
@@ -1477,8 +1411,8 @@
     // Import
     document.getElementById("import-btn").addEventListener("click", openImportModal);
 
-    // Global search (add card)
-    initGlobalSearch();
+    // Add card
+    $addCardBtn.addEventListener("click", openAddModal);
 
     // Close modal on overlay click
     $modal.addEventListener("click", (e) => {
